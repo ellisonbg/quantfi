@@ -3,13 +3,18 @@ import glob
 import pandas as pd
 import numpy as np
 import datetime as dt
-
 base_dir = os.environ.get('QUANT_QUOTE_MINUTELY')
 
 def get_symbols():
     """Get a list of all available symbols."""
     files = glob.glob(os.path.join(base_dir,'*'))
-    syms = [os.path.splitext(os.path.split(f)[1])[0].split('_')[1] for f in files]
+    syms = []
+    for f in files:
+        lst = os.listdir(f)
+        for csv in lst:
+            sym = csv.replace('.csv','').split('_')[1]
+            if sym not in syms:
+                syms.append(sym)
     return syms
 
 def get_file(symbol,date):
@@ -21,27 +26,50 @@ def get_file(symbol,date):
         raise IOError("File doesn't exist: %r" % file)
     return file
 
-def get_minutely_data(symbol,start,end):
-    data = pd.DataFrame()
+def _parse_datetime(date,time):
+    get_time = lambda x: dt.time(hour=int(x)/100, minute=(int(x)-(int(x)/100)*100))
+    parse = lambda x,y: dt.datetime.combine(dt.datetime.strptime(x,'%Y%m%d'), get_time(y))
+    return parse(date,time)
+
+def get_minutely_data(symbol,start = glob.glob(os.path.join(base_dir,'*'))[0].split('_')[-1],
+                      end = glob.glob(os.path.join(base_dir,'*'))[-1].split('_')[-1] ):
+    """Get stock data from QuantQuote dataset for symbol and date range"""
+    data = []
     date_range = pd.date_range(start, end, freq='d')
     for date in date_range:
         try:
             date = date.strftime('%Y%m%d')
             f = get_file(symbol,date)
-            df = pd.read_csv(f, header=None, 
-                             names=['date','time','open','high','low','close','volume', 'splits','earnings','dividends'])
-            df.date = pd.to_datetime(df.date, format = '%Y%m%d')
-
-            get_time = lambda x: dt.timedelta(hours=x/100, minutes=(x-(x/100)*100))
-
-            for i in range(len(df.time)):
-                df.time.ix[i] = df.date.ix[i] + get_time(df.time.ix[i])
-
-            #shifts from EST to UTC
-            df.index = pd.DatetimeIndex(df.time) + dt.timedelta(hours=5)
-            df = df.drop('date',axis = 1)
-            df = df.drop('time', axis = 1)
-            data = pd.concat([data,df],axis = 0)
-        except:
+            df = pd.read_csv(f, header=None,
+                             names=['date','time','open','high','low','close','volume',
+                                    'splits','earnings','dividends'], index_col = 0,
+                             parse_dates = [[0,1]], date_parser = _parse_datetime)
+            
+            #shifts from EST to UTC. What about EDT?
+            df.index = df.index + dt.timedelta(hours=5)
+            data.append(df)
+        except IOError:#, AttributeError):#, NameError:
             continue
+    data = pd.concat(data, axis = 0)
+    data.index.name = None
     return data
+
+def earningsfnct():
+    pass
+
+_how = {'open':'first', 'high':'max', 'low':'min', 'close':'last', 'volume':'sum', 'splits':'last',
+    'earnings':'first', 'dividends':'sum'}
+
+def resample(df, period):
+    df = df.resample(period, closed='right', how=_how, label='right')
+    return df[['open','high','low','close','volume', 'splits','earnings','dividends']].dropna()
+
+def log_returns(data,period):
+    return np.log(data.close/data.close.shift(period))
+
+def future_trend(data, start, period, f = 'min'):
+    return data.ix[pd.date_range(start, periods = period, freq = f)].dropna()
+
+def past_trend(data, end, period, f = 'min'):
+    start = pd.to_datetime(end) - dt.timedelta(minutes = period)
+    return data.ix[pd.date_range(start, periods = period, freq = f)].dropna()
