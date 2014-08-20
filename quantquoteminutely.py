@@ -3,6 +3,7 @@ import glob
 import pandas as pd
 import numpy as np
 import datetime as dt
+
 base_dir = os.environ.get('QUANT_QUOTE_MINUTELY')
 
 def get_symbols():
