@@ -32,8 +32,8 @@ def _parse_datetime(date,time):
     parse = lambda x,y: dt.datetime.combine(dt.datetime.strptime(x,'%Y%m%d'), get_time(y))
     return parse(date,time)
 
-def get_minutely_data(symbol,start = glob.glob(os.path.join(base_dir,'*'))[0].split('_')[-1],
-                      end = glob.glob(os.path.join(base_dir,'*'))[-1].split('_')[-1] ):
+def get_minutely_data(symbol,end = glob.glob(os.path.join(base_dir,'*'))[0].split('_')[-1],
+			start = glob.glob(os.path.join(base_dir,'*'))[-1].split('_')[-1]):
     """Get stock data from QuantQuote dataset for symbol and date range"""
     data = []
     date_range = pd.date_range(start, end, freq='d')
