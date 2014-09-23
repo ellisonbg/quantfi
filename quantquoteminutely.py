@@ -27,14 +27,23 @@ def get_file(symbol,date):
         raise IOError("File doesn't exist: %r" % file)
     return file
 
+def get_start():
+    return glob.glob(os.path.join(base_dir,'*'))[0].split('_')[-1]
+
+def get_end():
+    return glob.glob(os.path.join(base_dir,'*'))[-1].split('_')[-1]
+
 def _parse_datetime(date,time):
     get_time = lambda x: dt.time(hour=int(x)/100, minute=(int(x)-(int(x)/100)*100))
     parse = lambda x,y: dt.datetime.combine(dt.datetime.strptime(x,'%Y%m%d'), get_time(y))
     return parse(date,time)
 
-def get_minutely_data(symbol,end = glob.glob(os.path.join(base_dir,'*'))[0].split('_')[-1],
-			start = glob.glob(os.path.join(base_dir,'*'))[-1].split('_')[-1]):
+def get_minutely_data(symbol, start=None, end=None):
     """Get stock data from QuantQuote dataset for symbol and date range"""
+    if start is None:
+        start = get_start()
+    if end is None:
+        end = get_end()
     data = []
     date_range = pd.date_range(start, end, freq='d')
     for date in date_range:
@@ -55,22 +64,13 @@ def get_minutely_data(symbol,end = glob.glob(os.path.join(base_dir,'*'))[0].spli
     data.index.name = None
     return data
 
-def earningsfnct():
-    pass
-
 _how = {'open':'first', 'high':'max', 'low':'min', 'close':'last', 'volume':'sum', 'splits':'last',
     'earnings':'first', 'dividends':'sum'}
 
 def resample(df, period):
     df = df.resample(period, closed='right', how=_how, label='right')
-    return df[['open','high','low','close','volume', 'splits','earnings','dividends']].dropna()
+    return df[['open','high','low','close','volume', 'splits','earnings','dividends']]
 
 def log_returns(data,period):
     return np.log(data.close/data.close.shift(period))
 
-def future_trend(data, start, period, f = 'min'):
-    return data.ix[pd.date_range(start, periods = period, freq = f)].dropna()
-
-def past_trend(data, end, period, f = 'min'):
-    start = pd.to_datetime(end) - dt.timedelta(minutes = period)
-    return data.ix[pd.date_range(start, periods = period, freq = f)].dropna()
